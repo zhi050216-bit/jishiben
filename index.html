@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes">
+    <title>云笔记 · QQ邮箱同步记事本</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #f5f7fb;
+            height: 100vh;
+            overflow: hidden;
+            color: #1e293b;
+        }
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 40px rgba(0,0,0,0.03);
+        }
+        .navbar {
+            background: white;
+            border-bottom: 1px solid #e9eef3;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .logo-area .material-icons { font-size: 28px; color: #3b82f6; }
+        .logo-area h1 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #2563eb, #1e40af);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .user-info { display: flex; align-items: center; gap: 16px; }
+        .auth-input {
+            padding: 8px 12px;
+            border-radius: 40px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.85rem;
+            font-family: inherit;
+            outline: none;
+            background: white;
+        }
+        .auth-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+        }
+        .btn-icon {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 40px;
+            transition: 0.2s;
+            color: #5b6e8c;
+        }
+        .btn-icon:hover { background: #f1f5f9; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #cbd5e1;
+            padding: 6px 14px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #334155;
+            cursor: pointer;
+        }
+        .btn-outline:hover { background: #f8fafc; border-color: #94a3b8; }
+        .btn-primary {
+            background: #3b82f6;
+            border: none;
+            color: white;
+            padding: 8px 18px;
+            border-radius: 40px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+        }
+        .btn-primary:hover { background: #2563eb; }
+        .main-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
+        .notes-sidebar {
+            width: 280px;
+            background: #fefefe;
+            border-right: 1px solid #eef2f6;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: transform 0.25s ease;
+        }
+        .sidebar-header {
+            padding: 16px 16px 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sidebar-header h3 { font-size: 0.9rem; font-weight: 500; color: #475569; }
+        .notes-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .note-item {
+            background: white;
+            border-radius: 14px;
+            padding: 12px 14px;
+            cursor: pointer;
+            transition: 0.2s;
+            border: 1px solid #edf2f7;
+        }
+        .note-item.active {
+            background: #eff6ff;
+            border-left: 3px solid #3b82f6;
+        }
+        .note-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .note-preview {
+            font-size: 0.75rem;
+            color: #5b6e8c;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .note-date {
+            font-size: 0.65rem;
+            color: #8ba0bc;
+            margin-top: 6px;
+        }
+        .delete-note-btn {
+            float: right;
+            opacity: 0;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            border-radius: 20px;
+            padding: 2px;
+        }
+        .note-item:hover .delete-note-btn { opacity: 1; }
+        .delete-note-btn:hover { color: #ef4444; background: #fee2e2; }
+        .editor-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+            overflow: hidden;
+        }
+        .editor-toolbar {
+            padding: 16px 24px 8px 24px;
+            border-bottom: 1px solid #f0f2f5;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .editor-title-input {
+            font-size: 1.7rem;
+            font-weight: 600;
+            border: none;
+            outline: none;
+            width: 100%;
+            background: transparent;
+            padding: 8px 0;
+        }
+        .editor-content { flex: 1; padding: 20px 28px; }
+        .note-content-textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            resize: none;
+            font-size: 1rem;
+            line-height: 1.6;
+            font-family: 'Inter', monospace;
+            outline: none;
+        }
+        @media (max-width: 640px) {
+            .notes-sidebar {
+                position: absolute;
+                left: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 20;
+                width: 75%;
+                background: white;
+                transform: translateX(-100%);
+                box-shadow: 2px 0 12px rgba(0,0,0,0.1);
+            }
+            .notes-sidebar.open { transform: translateX(0); }
+            .menu-toggle { display: block; }
+            .editor-title-input { font-size: 1.3rem; }
+            .editor-content { padding: 16px; }
+        }
+        @media (min-width: 641px) {
+            .menu-toggle { display: none; }
+            .notes-sidebar { transform: translateX(0) !important; }
+        }
+        .menu-toggle {
+            background: #f1f5f9;
+            border: none;
+            border-radius: 40px;
+            padding: 6px 12px;
+        }
+        .sync-status {
+            font-size: 0.7rem;
+            background: #e6f7e6;
+            padding: 4px 8px;
+            border-radius: 40px;
+            color: #2c6e2c;
+        }
+        .footer-note {
+            font-size: 0.7rem;
+            text-align: center;
+            border-top: 1px solid #f0f2f5;
+            padding: 8px;
+            color: #8ba0bc;
+        }
+        .auth-flex {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+<div class="app" id="app">
+    <div class="navbar">
+        <div class="logo-area">
+            <button class="menu-toggle btn-icon" id="menuToggleBtn"><span class="material-icons">menu</span></button>
+            <span class="material-icons">note_stack</span>
+            <h1>云笔记·QQ邮箱同步</h1>
+        </div>
+        <div class="user-info" id="userSection">
+            <div id="authContainer">
+                <!-- 未登录时显示邮箱/密码表单 -->
+                <div id="loginForm" class="auth-flex">
+                    <input type="email" id="loginEmail" placeholder="QQ邮箱" class="auth-input" autocomplete="email">
+                    <input type="password" id="loginPassword" placeholder="密码" class="auth-input" autocomplete="current-password">
+                    <button id="loginBtn" class="btn-primary">登录</button>
+                    <button id="registerBtn" class="btn-outline">注册</button>
+                </div>
+                <!-- 登录后显示用户信息和登出按钮 -->
+                <div id="userInfo" style="display: none;" class="auth-flex">
+                    <span class="user-email" id="userEmail"></span>
+                    <button id="logoutBtn" class="btn-outline">登出</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="main-layout">
+        <div class="notes-sidebar" id="notesSidebar">
+            <div class="sidebar-header">
+                <h3><span class="material-icons" style="font-size: 18px;">description</span> 我的笔记</h3>
+                <button id="newNoteBtn" class="btn-icon" style="background:#eef2ff;"><span class="material-icons">add</span></button>
+            </div>
+            <div class="notes-list" id="notesListContainer">
+                <div style="text-align:center; padding: 40px;">请登录后使用笔记</div>
+            </div>
+            <div class="footer-note">🔄 所有设备实时同步 (QQ邮箱登录)</div>
+        </div>
+        <div class="editor-area">
+            <div class="editor-toolbar">
+                <div style="display: flex; gap: 6px;">
+                    <span class="material-icons" style="color:#3b82f6;">edit_note</span>
+                    <span id="syncBadge" class="sync-status" style="display: none;">● 已同步</span>
+                </div>
+                <button id="deleteCurrentNoteBtn" class="btn-icon"><span class="material-icons">delete_outline</span></button>
+            </div>
+            <div class="editor-content">
+                <input type="text" id="noteTitleInput" class="editor-title-input" placeholder="笔记标题">
+                <textarea id="noteBodyInput" class="note-content-textarea" placeholder="开始记录... (实时自动保存)"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // =================  🔥 请替换为您的 Firebase 配置 🔥 =================
+   const firebaseConfig = {
+  apiKey: "AIzaSyCbNcG4CI0_-qaBdeJbLSfpC1xrajstFAI",
+  authDomain: "jishiben-116e8.firebaseapp.com",
+  projectId: "jishiben-116e8",
+  storageBucket: "jishiben-116e8.firebasestorage.app",
+  messagingSenderId: "693875785354",
+  appId: "1:693875785354:web:b0a07110a71dd628f5f773",
+  measurementId: "G-XHDZ121TV6"
+};
+    // =====================================================================
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // DOM 元素
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const loginBtn = document.getElementById('loginBtn');
+    const registerBtn = document.getElementById('registerBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const loginFormDiv = document.getElementById('loginForm');
+    const userInfoDiv = document.getElementById('userInfo');
+    const userEmailSpan = document.getElementById('userEmail');
+    const notesListDiv = document.getElementById('notesListContainer');
+    const newNoteBtn = document.getElementById('newNoteBtn');
+    const noteTitleInput = document.getElementById('noteTitleInput');
+    const noteBodyInput = document.getElementById('noteBodyInput');
+    const deleteCurrentBtn = document.getElementById('deleteCurrentNoteBtn');
+    const menuToggleBtn = document.getElementById('menuToggleBtn');
+    const notesSidebar = document.getElementById('notesSidebar');
+    const syncBadge = document.getElementById('syncBadge');
+
+    // 状态变量
+    let currentUser = null;
+    let currentNoteId = null;
+    let notesMap = new Map();
+    let unsubscribeNotes = null;
+    let isLocalSaving = false;
+    let lastSaveTimer = null;
+
+    function showSyncStatus(text, isError = false) {
+        if (syncBadge) {
+            syncBadge.style.display = 'inline-flex';
+            syncBadge.textContent = text;
+            syncBadge.style.backgroundColor = isError ? '#fee2e2' : '#e6f7e6';
+            syncBadge.style.color = isError ? '#b91c1c' : '#2c6e2c';
+            setTimeout(() => {
+                if (syncBadge.textContent === text) syncBadge.style.display = 'none';
+            }, 2000);
+        }
+    }
+
+    function debounceSaveNote() {
+        if (!currentUser || !currentNoteId) return;
+        if (lastSaveTimer) clearTimeout(lastSaveTimer);
+        lastSaveTimer = setTimeout(() => saveCurrentNoteToFirestore(), 800);
+    }
+
+    async function saveCurrentNoteToFirestore() {
+        if (!currentUser || !currentNoteId) return;
+        const title = noteTitleInput.value.trim() || "无标题笔记";
+        const content = noteBodyInput.value;
+        const existing = notesMap.get(currentNoteId);
+        if (existing && existing.title === title && existing.content === content) return;
+        isLocalSaving = true;
+        try {
+            const noteRef = doc(db, "users", currentUser.uid, "notes", currentNoteId);
+            await updateDoc(noteRef, { title, content, updatedAt: serverTimestamp() });
+            showSyncStatus("✓ 已保存");
+        } catch (err) {
+            console.error(err);
+            showSyncStatus("保存失败", true);
+        } finally {
+            setTimeout(() => { isLocalSaving = false; }, 500);
+        }
+    }
+
+    async function createNewNote() {
+        if (!currentUser) return alert("请先登录");
+        try {
+            const newNote = { title: "新笔记", content: "", createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+            const docRef = await addDoc(collection(db, "users", currentUser.uid, "notes"), newNote);
+            setCurrentNoteById(docRef.id);
+            if (window.innerWidth <= 640) notesSidebar.classList.remove('open');
+        } catch (err) {
+            alert("新建失败，请检查网络或权限");
+        }
+    }
+
+    async function deleteNoteById(noteId) {
+        if (!currentUser) return;
+        if (noteId === currentNoteId) {
+            clearEditor();
+            currentNoteId = null;
+        }
+        try {
+            await deleteDoc(doc(db, "users", currentUser.uid, "notes", noteId));
+            if (notesMap.size > 0) setCurrentNoteById(notesMap.keys().next().value);
+            else clearEditor();
+        } catch (err) {
+            alert("删除失败");
+        }
+    }
+
+    async function deleteCurrentNote() {
+        if (!currentUser) return alert("请先登录");
+        if (!currentNoteId) return alert("没有选中笔记");
+        if (confirm("永久删除此笔记？")) await deleteNoteById(currentNoteId);
+    }
+
+    function clearEditor() {
+        noteTitleInput.value = "";
+        noteBodyInput.value = "";
+    }
+
+    function setCurrentNoteById(noteId) {
+        const note = notesMap.get(noteId);
+        if (note) {
+            if (currentNoteId && currentNoteId !== noteId) saveCurrentNoteToFirestore();
+            currentNoteId = noteId;
+            noteTitleInput.value = note.title;
+            noteBodyInput.value = note.content;
+        } else {
+            clearEditor();
+            currentNoteId = null;
+        }
+        renderNotesList();
+    }
+
+    function renderNotesList() {
+        if (!currentUser) {
+            notesListDiv.innerHTML = `<div style="text-align:center; padding: 40px;">🔐 请登录后同步笔记</div>`;
+            return;
+        }
+        if (notesMap.size === 0) {
+            notesListDiv.innerHTML = `<div style="text-align:center; padding: 40px;">📭 暂无笔记，点击➕新建</div>`;
+            return;
+        }
+        const sorted = Array.from(notesMap.values()).sort((a,b) => (b.updatedAt?.toMillis?.()||0) - (a.updatedAt?.toMillis?.()||0));
+        notesListDiv.innerHTML = "";
+        for (const note of sorted) {
+            const div = document.createElement('div');
+            div.className = `note-item ${currentNoteId === note.id ? 'active' : ''}`;
+            const preview = note.content ? note.content.substring(0, 50).replace(/\n/g, ' ') : '点击编辑内容...';
+            const dateStr = note.updatedAt?.toDate?.()?.toLocaleString() || '刚刚';
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div style="flex:1; overflow:hidden;">
+                        <div class="note-title">${escapeHtml(note.title || '无标题')}</div>
+                        <div class="note-preview">${escapeHtml(preview)}</div>
+                        <div class="note-date">${dateStr}</div>
+                    </div>
+                    <button class="delete-note-btn" data-id="${note.id}"><span class="material-icons" style="font-size:18px;">close</span></button>
+                </div>
+            `;
+            div.addEventListener('click', (e) => {
+                if (e.target.closest('.delete-note-btn')) return;
+                setCurrentNoteById(note.id);
+                if (window.innerWidth <= 640) notesSidebar.classList.remove('open');
+            });
+            div.querySelector('.delete-note-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteNoteById(note.id);
+            });
+            notesListDiv.appendChild(div);
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    function subscribeToNotes(userId) {
+        if (unsubscribeNotes) unsubscribeNotes();
+        const q = query(collection(db, "users", userId, "notes"), orderBy("updatedAt", "desc"));
+        unsubscribeNotes = onSnapshot(q, (snapshot) => {
+            const newMap = new Map();
+            snapshot.docs.forEach(docSnap => {
+                const data = docSnap.data();
+                newMap.set(docSnap.id, {
+                    id: docSnap.id,
+                    title: data.title || "无标题",
+                    content: data.content || "",
+                    updatedAt: data.updatedAt || null,
+                });
+            });
+            const oldCurrent = currentNoteId ? notesMap.get(currentNoteId) : null;
+            notesMap = newMap;
+            if (currentNoteId && notesMap.has(currentNoteId)) {
+                const fresh = notesMap.get(currentNoteId);
+                if (oldCurrent && (fresh.title !== oldCurrent.title || fresh.content !== oldCurrent.content)) {
+                    if (!isLocalSaving) {
+                        noteTitleInput.value = fresh.title;
+                        noteBodyInput.value = fresh.content;
+                        showSyncStatus("↻ 同步更新");
+                    }
+                }
+            } else if (!currentNoteId && notesMap.size > 0) {
+                setCurrentNoteById(notesMap.keys().next().value);
+            }
+            renderNotesList();
+        });
+    }
+
+    // 认证状态监听
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUser = user;
+            userEmailSpan.textContent = user.email;
+            loginFormDiv.style.display = 'none';
+            userInfoDiv.style.display = 'flex';
+            // 清除旧数据并加载笔记
+            notesMap.clear();
+            currentNoteId = null;
+            clearEditor();
+            subscribeToNotes(user.uid);
+        } else {
+            currentUser = null;
+            loginFormDiv.style.display = 'flex';
+            userInfoDiv.style.display = 'none';
+            if (unsubscribeNotes) unsubscribeNotes();
+            notesMap.clear();
+            currentNoteId = null;
+            clearEditor();
+            renderNotesList();
+        }
+    });
+
+    // 注册
+    registerBtn.addEventListener('click', async () => {
+        const email = loginEmail.value.trim();
+        const password = loginPassword.value;
+        if (!email || !password) return alert('请输入邮箱和密码');
+        if (password.length < 6) return alert('密码至少6位');
+        try {
+            await createUserWithEmailAndPassword(auth, email, password);
+            alert('注册成功！已自动登录');
+        } catch (error) {
+            let msg = error.message;
+            if (msg.includes('email-already-in-use')) msg = '该邮箱已注册，请直接登录';
+            alert('注册失败: ' + msg);
+        }
+    });
+
+    // 登录
+    loginBtn.addEventListener('click', async () => {
+        const email = loginEmail.value.trim();
+        const password = loginPassword.value;
+        if (!email || !password) return alert('请输入邮箱和密码');
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+        } catch (error) {
+            let msg = error.message;
+            if (msg.includes('user-not-found')) msg = '用户不存在，请先注册';
+            else if (msg.includes('wrong-password')) msg = '密码错误';
+            alert('登录失败: ' + msg);
+        }
+    });
+
+    // 登出
+    logoutBtn.addEventListener('click', async () => {
+        await signOut(auth);
+    });
+
+    // 新建笔记、删除等事件
+    newNoteBtn.addEventListener('click', createNewNote);
+    deleteCurrentBtn.addEventListener('click', deleteCurrentNote);
+    noteTitleInput.addEventListener('input', () => { if (currentUser && currentNoteId) debounceSaveNote(); });
+    noteBodyInput.addEventListener('input', () => { if (currentUser && currentNoteId) debounceSaveNote(); });
+    menuToggleBtn.addEventListener('click', () => notesSidebar.classList.toggle('open'));
+    document.querySelector('.editor-area')?.addEventListener('click', () => {
+        if (window.innerWidth <= 640 && notesSidebar.classList.contains('open')) notesSidebar.classList.remove('open');
+    });
+
+    // 提示配置
+    if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+        console.warn("⚠️ 请先在代码顶部替换您的 Firebase 配置");
+        const warn = document.createElement('div');
+        warn.style.position = 'fixed';
+        warn.style.bottom = '10px';
+        warn.style.left = '10px';
+        warn.style.background = '#ffecba';
+        warn.style.padding = '8px 12px';
+        warn.style.borderRadius = '12px';
+        warn.style.fontSize = '12px';
+        warn.style.zIndex = '999';
+        warn.innerHTML = '🔧 需要配置 Firebase，详见代码顶部注释';
+        document.body.appendChild(warn);
+    }
+</script>
+</body>
+</html>
