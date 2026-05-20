@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>瞬记 · 跨设备云同步记事本</title>
+    <!-- 引入 Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(145deg, #f6f9fc 0%, #edf2f7 100%);
+            font-family: system-ui, -apple-system, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            padding: 2rem 1.5rem;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .notebook {
+            max-width: 1000px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.96);
+            border-radius: 2rem;
+            box-shadow: 0 25px 45px -12px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .notebook-header {
+            padding: 1.8rem 2rem 0.8rem 2rem;
+            border-bottom: 1px solid #e9edf2;
+            background: #ffffffd9;
+        }
+
+        .notebook-header h1 {
+            font-size: 1.85rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #1f2b3c, #2c3e50);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .notebook-header h1::before {
+            content: "📓";
+            background: none;
+            color: #3a5a7a;
+        }
+
+        .sub {
+            color: #5b6f82;
+            font-size: 0.85rem;
+            margin-top: 0.4rem;
+        }
+
+        .sync-key-area {
+            padding: 1rem 2rem 0 2rem;
+            background: #f8fbfe;
+            border-bottom: 1px solid #e2edf7;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 0.8rem;
+        }
+
+        .sync-key-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: #2c5c7c;
+        }
+
+        .sync-key-input {
+            flex: 2;
+            min-width: 180px;
+            padding: 0.5rem 0.8rem;
+            border: 1px solid #cbdde9;
+            border-radius: 2rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+            background: white;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .sync-key-input:focus {
+            border-color: #5b9cbf;
+            box-shadow: 0 0 0 2px #c7e2f5;
+        }
+
+        .sync-status {
+            font-size: 0.7rem;
+            background: #eaf4ff;
+            padding: 0.2rem 0.8rem;
+            border-radius: 30px;
+            color: #1d5b8e;
+        }
+
+        .sync-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            background: #e0f0fa;
+            padding: 0.2rem 0.7rem;
+            border-radius: 30px;
+        }
+
+        .title-area {
+            padding: 1.2rem 2rem 0 2rem;
+        }
+
+        .note-title {
+            width: 100%;
+            font-size: 1.7rem;
+            font-weight: 600;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-family: inherit;
+            color: #1a2c3e;
+            padding: 0.5rem 0;
+            border-bottom: 2px solid #e2e8f0;
+            transition: border 0.2s;
+        }
+
+        .note-title:focus {
+            border-bottom-color: #5b9cbf;
+        }
+
+        .content-area {
+            padding: 1rem 2rem 1rem 2rem;
+        }
+
+        .note-body {
+            width: 100%;
+            min-height: 360px;
+            padding: 1rem 0.5rem;
+            font-size: 1rem;
+            line-height: 1.6;
+            font-family: inherit;
+            border: none;
+            outline: none;
+            resize: vertical;
+            background: transparent;
+            color: #1e2f3f;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.8rem 2rem 1.5rem 2rem;
+            background: #fafcff;
+            border-top: 1px solid #ecf1f6;
+        }
+
+        .status-area {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            font-size: 0.8rem;
+        }
+
+        .save-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.2rem 0.7rem;
+            border-radius: 30px;
+            width: fit-content;
+            font-size: 0.75rem;
+            background: #e9f5ea;
+            color: #2c6b2f;
+        }
+
+        .save-time {
+            color: #5e727e;
+            font-size: 0.7rem;
+        }
+
+        .word-count {
+            color: #6e889b;
+            font-size: 0.7rem;
+            background: #eff3f8;
+            padding: 0.2rem 0.6rem;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 0.7rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: white;
+            border: 1px solid #cfdfed;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #2c4c6c;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn:hover {
+            background: #eef4fa;
+            border-color: #b7d0e5;
+            transform: translateY(-1px);
+        }
+
+        .btn-clear {
+            color: #a13e3e;
+            border-color: #f3cfcf;
+            background: #fff7f7;
+        }
+
+        .btn-export {
+            background: #f0f6fe;
+            border-color: #bdd8f0;
+            color: #1b5a8c;
+        }
+
+        footer {
+            text-align: center;
+            font-size: 0.7rem;
+            padding: 1rem;
+            color: #8ca3b5;
+            background: #ffffffc9;
+            border-top: 1px solid #ecf1f6;
+        }
+
+        @media (max-width: 640px) {
+            body { padding: 1rem; }
+            .notebook-header, .sync-key-area, .title-area, .content-area, .toolbar {
+                padding-left: 1.2rem;
+                padding-right: 1.2rem;
+            }
+            .note-body { min-height: 260px; }
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body { background: linear-gradient(145deg, #1a262f, #111a20); }
+            .notebook { background: #1f2c34ea; border-color: #2a3a44; }
+            .notebook-header, .toolbar, footer, .sync-key-area { background: #1e2b33d9; border-color: #2e404c; }
+            .note-title, .note-body { color: #e3edf2; }
+            .btn { background: #2e3f48; border-color: #405b67; color: #d6e6ef; }
+            .btn-clear { background: #382a2a; border-color: #764e4e; color: #ffcfcf; }
+            .save-indicator { background: #2d4a2f; color: #c0f0c5; }
+            .sync-key-input { background: #2d3e48; color: #eef; border-color: #4a6c7a; }
+            .sync-status, .sync-badge { background: #2b4a60; color: #d3ecff; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="notebook">
+    <div class="notebook-header">
+        <h1>瞬记 · 云同步版</h1>
+        <div class="sub">✍️ 实时保存 · 跨设备同步（设置同一密钥即可手机/电脑共用）</div>
+    </div>
+
+    <div class="sync-key-area">
+        <span class="sync-key-label">🔑 同步密钥：</span>
+        <input type="text" id="syncKeyInput" class="sync-key-input" placeholder="例如 my-secret-note-2025" autocomplete="off">
+        <div class="sync-status" id="syncStatus">⚡ 未同步</div>
+        <div class="sync-badge" id="cloudState">☁️ 等待云端连接</div>
+    </div>
+
+    <div class="title-area">
+        <input type="text" id="noteTitle" class="note-title" placeholder="笔记标题" autocomplete="off">
+    </div>
+
+    <div class="content-area">
+        <textarea id="noteContent" class="note-body" placeholder="写下你的灵感、待办或日记... 云端自动同步多设备 ✨" rows="12"></textarea>
+    </div>
+
+    <div class="toolbar">
+        <div class="status-area">
+            <div class="save-indicator"><span>💾</span> <span id="statusText">已就绪</span></div>
+            <div class="save-time" id="saveTimeDisplay">上次保存: 未保存</div>
+            <div class="word-count" id="wordCount">字数: 0</div>
+        </div>
+        <div class="button-group">
+            <button class="btn" id="exportBtn">📄 导出笔记</button>
+            <button class="btn btn-clear" id="clearBtn">🗑️ 清除本地+云端</button>
+        </div>
+    </div>
+    <footer>
+        🔐 同步密钥是您数据的“保险箱钥匙”，请保管好。多端填入相同密钥即可自动合并笔记。
+    </footer>
+</div>
+
+<script>
+    // =======================  🔥 请替换为您的 Firebase 配置 =======================
+   const firebaseConfig = {
+  apiKey: "AIzaSyCkRylXyKBososnivshCM0gxUf6WqpHjrQ",
+  authDomain: "notebook-3d3fc.firebaseapp.com",
+  projectId: "notebook-3d3fc",
+  storageBucket: "notebook-3d3fc.firebasestorage.app",
+  messagingSenderId: "790491847500",
+  appId: "1:790491847500:web:5c4dcbd5ee1270139f8de9",
+  measurementId: "G-ZTCYQH8TVT"
+};
+    // ============================================================================
+
+    // 初始化 Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // DOM 元素
+    const syncKeyInput = document.getElementById('syncKeyInput');
+    const syncStatusSpan = document.getElementById('syncStatus');
+    const cloudStateSpan = document.getElementById('cloudState');
+    const titleInput = document.getElementById('noteTitle');
+    const contentTextarea = document.getElementById('noteContent');
+    const statusTextSpan = document.getElementById('statusText');
+    const saveTimeSpan = document.getElementById('saveTimeDisplay');
+    const wordCountSpan = document.getElementById('wordCount');
+    const exportBtn = document.getElementById('exportBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    // 本地存储 Key (用于离线备份与同步密钥记忆)
+    const LOCAL_TITLE_KEY = 'quicknote_title';
+    const LOCAL_CONTENT_KEY = 'quicknote_content';
+    const LOCAL_LAST_SAVED = 'quicknote_last_saved';
+    const LOCAL_SYNC_KEY = 'quicknote_sync_key';
+
+    // 同步状态相关
+    let currentSyncKey = '';          // 当前激活的同步密钥
+    let isRemoteUpdating = false;      // 防止循环触发（远端更新时覆盖本地输入）
+    let remoteListenerRef = null;      // 数据库引用监听
+    let debounceTimer = null;
+    const DEBOUNCE_DELAY = 500;
+
+    // 辅助函数
+    function formatTimestamp(date) {
+        if (!date) return '未知';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    function updateWordCount() {
+        wordCountSpan.textContent = `字数: ${contentTextarea.value.length} 字符`;
+    }
+
+    function updateLocalStorage(title, content) {
+        localStorage.setItem(LOCAL_TITLE_KEY, title);
+        localStorage.setItem(LOCAL_CONTENT_KEY, content);
+        localStorage.setItem(LOCAL_LAST_SAVED, new Date().toISOString());
+        saveTimeSpan.textContent = `上次保存: ${formatTimestamp(new Date())}`;
+    }
+
+    // 保存到本地 + 上传云端 (如果密钥有效)
+    function saveToLocalAndCloud(showFeedback = true) {
+        const title = titleInput.value;
+        const content = contentTextarea.value;
+        updateLocalStorage(title, content);
+        if (showFeedback) {
+            statusTextSpan.textContent = '已保存';
+            setTimeout(() => { if (statusTextSpan.textContent === '已保存') statusTextSpan.textContent = '已就绪'; }, 1500);
+        } else {
+            statusTextSpan.textContent = '已就绪';
+        }
+        updateWordCount();
+
+        // 上传到云端（如果密钥存在且有效）
+        if (currentSyncKey && currentSyncKey.trim() !== '') {
+            const noteRef = database.ref(`notes/${currentSyncKey}`);
+            // 注意：不要触发自己的监听器，直接更新数据
+            noteRef.update({
+                title: title,
+                content: content,
+                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            }).catch(err => {
+                console.warn('云端上传失败', err);
+                syncStatusSpan.innerText = '⚠️ 同步失败';
+                cloudStateSpan.innerText = '☁️ 离线模式';
+            });
+        }
+    }
+
+    // 防抖保存（用户输入时调用）
+    function debouncedSave() {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        statusTextSpan.textContent = '编辑中...';
+        debounceTimer = setTimeout(() => {
+            saveToLocalAndCloud(true);
+            debounceTimer = null;
+        }, DEBOUNCE_DELAY);
+    }
+
+    // 立即强制保存
+    function forceSaveNow() {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+        }
+        saveToLocalAndCloud(true);
+    }
+
+    // 从云端拉取数据并更新界面 (不会重新上传)
+    function applyRemoteData(title, content, timestamp) {
+        if (isRemoteUpdating) return;
+        isRemoteUpdating = true;
+        // 避免覆盖当前正在编辑的内容？这里采取较简单的策略：如果远程数据与本地不同，则更新界面
+        const currentTitle = titleInput.value;
+        const currentContent = contentTextarea.value;
+        if (currentTitle !== title || currentContent !== content) {
+            titleInput.value = title || '';
+            contentTextarea.value = content || '';
+            updateLocalStorage(title || '', content || '');
+            if (timestamp) {
+                const dateObj = new Date(timestamp);
+                if (!isNaN(dateObj.getTime())) saveTimeSpan.textContent = `上次保存: ${formatTimestamp(dateObj)} (云端)`;
+            }
+            updateWordCount();
+            statusTextSpan.textContent = '已同步';
+            setTimeout(() => { if (statusTextSpan.textContent === '已同步') statusTextSpan.textContent = '已就绪'; }, 1000);
+        }
+        isRemoteUpdating = false;
+    }
+
+    // 监听云端变化
+    function attachRemoteListener(syncKey) {
+        if (remoteListenerRef) {
+            remoteListenerRef.off(); // 移除旧监听
+            remoteListenerRef = null;
+        }
+        if (!syncKey || syncKey.trim() === '') return;
+        const notesPath = `notes/${syncKey}`;
+        const ref = database.ref(notesPath);
+        remoteListenerRef = ref;
+        ref.on('value', (snapshot) => {
+            if (isRemoteUpdating) return;
+            const data = snapshot.val();
+            if (data) {
+                const remoteTitle = data.title || '';
+                const remoteContent = data.content || '';
+                const remoteTime = data.lastUpdated;
+                // 避免自己上传时触发的循环：由于在 saveToLocalAndCloud 中更新数据库时也会触发此监听，
+                // 但 isRemoteUpdating 标记可以阻止覆盖，且因为界面的内容已经和上传内容一致，不会造成闪烁
+                applyRemoteData(remoteTitle, remoteContent, remoteTime);
+                syncStatusSpan.innerText = '☁️ 已同步';
+                cloudStateSpan.innerText = '🌐 云端在线';
+            } else {
+                // 云端没有数据 -> 把当前本地内容推上去
+                if (currentSyncKey && titleInput.value) {
+                    saveToLocalAndCloud(false);
+                }
+                syncStatusSpan.innerText = '☁️ 就绪';
+                cloudStateSpan.innerText = '☁️ 等待数据';
+            }
+        }, (error) => {
+            console.error('监听失败', error);
+            syncStatusSpan.innerText = '❌ 同步失败';
+            cloudStateSpan.innerText = '⚠️ 云端连接失败';
+        });
+    }
+
+    // 切换/初始化同步密钥
+    function setSyncKey(key) {
+        const newKey = key.trim();
+        if (newKey === currentSyncKey) return;
+        currentSyncKey = newKey;
+        // 保存密钥到本地存储
+        if (newKey) {
+            localStorage.setItem(LOCAL_SYNC_KEY, newKey);
+        } else {
+            localStorage.removeItem(LOCAL_SYNC_KEY);
+        }
+        // 重新绑定远程监听
+        attachRemoteListener(newKey);
+        if (newKey !== '') {
+            syncStatusSpan.innerText = '🔑 同步已激活';
+            cloudStateSpan.innerText = '☁️ 连接中...';
+            // 可选：主动推送一次当前本地内容到云端（确保新密钥有数据）
+            setTimeout(() => {
+                if (titleInput.value || contentTextarea.value) {
+                    saveToLocalAndCloud(false);
+                }
+            }, 300);
+        } else {
+            syncStatusSpan.innerText = '⏸️ 未同步(仅本地)';
+            cloudStateSpan.innerText = '📀 本地模式';
+        }
+    }
+
+    // 加载本地存储的数据 + 记忆的同步密钥
+    function loadLocalDataAndInit() {
+        const savedTitle = localStorage.getItem(LOCAL_TITLE_KEY);
+        const savedContent = localStorage.getItem(LOCAL_CONTENT_KEY);
+        const savedSyncKey = localStorage.getItem(LOCAL_SYNC_KEY);
+        const lastSavedTime = localStorage.getItem(LOCAL_LAST_SAVED);
+
+        if (savedTitle !== null) titleInput.value = savedTitle;
+        if (savedContent !== null) contentTextarea.value = savedContent;
+        else if (savedTitle === null && savedContent === null) {
+            // 首次使用，添加示例
+            titleInput.value = "✨ 云同步笔记本";
+            contentTextarea.value = "欢迎使用！\n\n1. 设置一个「同步密钥」（比如 my-notes-2025）\n2. 在另一台设备（手机/电脑）打开同样网页，输入相同密钥\n3. 笔记会自动合并，实时同步，再也不怕丢失～\n\n当前数据同时保存在本地和云端。";
+            saveToLocalAndCloud(false);
+        }
+        updateWordCount();
+        if (lastSavedTime) {
+            try {
+                const savedDate = new Date(lastSavedTime);
+                if (!isNaN(savedDate.getTime())) saveTimeSpan.textContent = `上次保存: ${formatTimestamp(savedDate)} (本地)`;
+            } catch(e) {}
+        }
+
+        if (savedSyncKey) {
+            syncKeyInput.value = savedSyncKey;
+            setSyncKey(savedSyncKey);
+        } else {
+            // 默认生成一个随机提示密钥（用户可以修改）
+            const randomHint = "mybook_" + Math.random().toString(36).substring(2, 8);
+            syncKeyInput.placeholder = `例如 ${randomHint}`;
+        }
+    }
+
+    // 清除所有内容（本地+云端对应密钥）
+    function clearAllNotes() {
+        if (!confirm('⚠️ 清除操作会删除本地和云端（当前同步密钥下）的所有笔记！不可恢复。确认吗？')) return;
+        titleInput.value = '';
+        contentTextarea.value = '';
+        updateLocalStorage('', '');
+        updateWordCount();
+        saveTimeSpan.textContent = `上次保存: ${formatTimestamp(new Date())} (已清空)`;
+        statusTextSpan.textContent = '已清空';
+        // 同时清空云端对应路径
+        if (currentSyncKey && currentSyncKey.trim() !== '') {
+            database.ref(`notes/${currentSyncKey}`).remove().catch(e => console.warn);
+        }
+        setTimeout(() => { if (statusTextSpan.textContent === '已清空') statusTextSpan.textContent = '已就绪'; }, 1500);
+    }
+
+    // 导出 TXT
+    function exportAsTxt() {
+        const title = titleInput.value.trim() || "无标题";
+        const content = contentTextarea.value || "";
+        const exportDate = formatTimestamp(new Date());
+        const exportContent = `标题：${title}\n导出时间：${exportDate}\n同步密钥：${currentSyncKey || '未使用云同步'}\n\n${'='.repeat(42)}\n\n${content}\n\n${'='.repeat(42)}\n瞬记·云同步版`;
+        const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        const now = new Date();
+        const fileTimestamp = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+        link.download = `瞬记_${title.slice(0,20)}_${fileTimestamp}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        statusTextSpan.textContent = '已导出';
+        setTimeout(() => { if (statusTextSpan.textContent === '已导出') statusTextSpan.textContent = '已就绪'; }, 1500);
+    }
+
+    // 事件绑定
+    titleInput.addEventListener('input', () => debouncedSave());
+    contentTextarea.addEventListener('input', () => { debouncedSave(); updateWordCount(); });
+    titleInput.addEventListener('blur', forceSaveNow);
+    contentTextarea.addEventListener('blur', forceSaveNow);
+    syncKeyInput.addEventListener('change', (e) => setSyncKey(e.target.value));
+    clearBtn.addEventListener('click', clearAllNotes);
+    exportBtn.addEventListener('click', exportAsTxt);
+    window.addEventListener('beforeunload', () => forceSaveNow());
+
+    // 启动
+    loadLocalDataAndInit();
+</script>
+</body>
+</html>
