@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>云笔记 · QQ邮箱同步记事本</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: #f5f7fb; height: 100vh; overflow: hidden; }
+        .app { display: flex; flex-direction: column; height: 100%; max-width: 1200px; margin: 0 auto; background: white; }
+        .navbar { background: white; border-bottom: 1px solid #e9eef3; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .logo-area { display: flex; align-items: center; gap: 12px; }
+        .logo-area h1 { font-size: 1.4rem; }
+        .auth-input { padding: 8px 12px; border-radius: 40px; border: 1px solid #cbd5e1; font-size: 0.85rem; }
+        .btn-primary { background: #3b82f6; border: none; color: white; padding: 8px 18px; border-radius: 40px; cursor: pointer; }
+        .btn-outline { background: transparent; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 40px; cursor: pointer; }
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+        .notes-sidebar { width: 260px; background: #fefefe; border-right: 1px solid #eef2f6; display: flex; flex-direction: column; overflow-y: auto; }
+        .sidebar-header { padding: 16px; display: flex; justify-content: space-between; }
+        .notes-list { flex: 1; padding: 8px; }
+        .note-item { background: white; border-radius: 12px; padding: 10px; margin-bottom: 8px; cursor: pointer; border: 1px solid #edf2f7; }
+        .note-item.active { background: #eff6ff; border-left: 3px solid #3b82f6; }
+        .editor-area { flex: 1; display: flex; flex-direction: column; }
+        .editor-toolbar { padding: 16px 24px; border-bottom: 1px solid #f0f2f5; display: flex; justify-content: space-between; }
+        .editor-title-input { font-size: 1.5rem; font-weight: 600; border: none; outline: none; width: 100%; padding: 8px 0; }
+        .editor-content { flex: 1; padding: 20px; }
+        .note-content-textarea { width: 100%; height: 100%; border: none; resize: none; font-size: 1rem; line-height: 1.5; outline: none; }
+        .user-info { display: flex; gap: 8px; align-items: center; }
+        @media (max-width: 640px) { .notes-sidebar { display: none; } }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="navbar">
+        <div class="logo-area"><span>📓</span><h1>云笔记·QQ邮箱同步</h1></div>
+        <div class="user-info" id="userSection">
+            <div id="loginForm">
+                <input type="email" id="loginEmail" placeholder="QQ邮箱" class="auth-input">
+                <input type="password" id="loginPassword" placeholder="密码" class="auth-input">
+                <button id="loginBtn" class="btn-primary">登录</button>
+                <button id="registerBtn" class="btn-outline">注册</button>
+            </div>
+            <div id="userInfo" style="display: none;">
+                <span id="userEmail"></span>
+                <button id="logoutBtn" class="btn-outline">登出</button>
+            </div>
+        </div>
+    </div>
+    <div class="main-layout">
+        <div class="notes-sidebar" id="notesSidebar">
+            <div class="sidebar-header"><h3>我的笔记</h3><button id="newNoteBtn" class="btn-outline">+ 新建</button></div>
+            <div class="notes-list" id="notesList">登录后显示笔记</div>
+        </div>
+        <div class="editor-area">
+            <div class="editor-toolbar"><span>📝 编辑</span><button id="deleteNoteBtn" class="btn-outline">删除</button></div>
+            <div class="editor-content">
+                <input type="text" id="noteTitle" placeholder="标题" class="editor-title-input">
+                <textarea id="noteContent" placeholder="写点什么..." class="note-content-textarea"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // ========== 🔥 请把您的 Firebase 配置填在下方 ==========
+   const firebaseConfig = { 
+  apiKey ："AIzaSyCbNcG4CI0_-qaBdeJbLSfpC1xrajsTFAI" , 
+  authDomain : "jishiben-116e8.firebaseapp.com" , 
+  项目ID ：“jishiben-116e8” ， 
+  storageBucket : "jishiben-116e8.firebasestorage.app" , 
+  messagingSenderId : "693875785354" , 
+  appId : "1:693875785354:web:b0a07110a71dd628f5f773" , 
+  measurementId : "G-XHDZ121TV6" 
+};
+    // ====================================================
+
+    console.log("Firebase 配置已加载", firebaseConfig);
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+    let app, db, auth;
+    try {
+        app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        auth = getAuth(app);
+        console.log("Firebase 初始化成功");
+    } catch (e) {
+        console.error("Firebase 初始化失败", e);
+        alert("Firebase 配置错误，请检查 apiKey 等项目是否正确");
+    }
+
+    // DOM 元素
+    const loginEmail = document.getElementById('loginEmail');
+    const loginPassword = document.getElementById('loginPassword');
+    const loginBtn = document.getElementById('loginBtn');
+    const registerBtn = document.getElementById('registerBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const loginForm = document.getElementById('loginForm');
+    const userInfoDiv = document.getElementById('userInfo');
+    const userEmailSpan = document.getElementById('userEmail');
+    const notesListDiv = document.getElementById('notesList');
+    const newNoteBtn = document.getElementById('newNoteBtn');
+    const deleteNoteBtn = document.getElementById('deleteNoteBtn');
+    const noteTitleInput = document.getElementById('noteTitle');
+    const noteContentInput = document.getElementById('noteContent');
+
+    let currentUser = null;
+    let currentNoteId = null;
+    let notesMap = new Map();
+    let unsubscribeNotes = null;
+    let saveTimer = null;
+
+    function showStatus(msg, isErr = false) { console.log(msg); }
+
+    function saveCurrentNote() {
+        if (!currentUser || !currentNoteId) return;
+        const title = noteTitleInput.value.trim() || "无标题";
+        const content = noteContentInput.value;
+        const noteRef = doc(db, "users", currentUser.uid, "notes", currentNoteId);
+        updateDoc(noteRef, { title, content, updatedAt: serverTimestamp() }).catch(console.error);
+    }
+
+    function debounceSave() {
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveCurrentNote, 800);
+    }
+
+    noteTitleInput?.addEventListener('input', debounceSave);
+    noteContentInput?.addEventListener('input', debounceSave);
+
+    async function createNewNote() {
+        if (!currentUser) return alert("请先登录");
+        try {
+            const newNote = { title: "新笔记", content: "", createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+            const docRef = await addDoc(collection(db, "users", currentUser.uid, "notes"), newNote);
+            setCurrentNote(docRef.id);
+        } catch (err) { alert("新建失败"); }
+    }
+
+    async function deleteCurrentNote() {
+        if (!currentUser || !currentNoteId) return alert("未选中笔记");
+        if (confirm("永久删除？")) {
+            await deleteDoc(doc(db, "users", currentUser.uid, "notes", currentNoteId));
+            if (notesMap.size > 0) setCurrentNote(notesMap.keys().next().value);
+            else clearEditor();
+        }
+    }
+
+    function clearEditor() {
+        noteTitleInput.value = "";
+        noteContentInput.value = "";
+        currentNoteId = null;
+    }
+
+    function setCurrentNote(noteId) {
+        const note = notesMap.get(noteId);
+        if (note) {
+            if (currentNoteId && currentNoteId !== noteId) saveCurrentNote();
+            currentNoteId = noteId;
+            noteTitleInput.value = note.title || "";
+            noteContentInput.value = note.content || "";
+        } else { clearEditor(); }
+        renderNotesList();
+    }
+
+    function renderNotesList() {
+        if (!currentUser) { notesListDiv.innerHTML = "请登录"; return; }
+        if (notesMap.size === 0) { notesListDiv.innerHTML = "暂无笔记，点击新建"; return; }
+        const sorted = Array.from(notesMap.values()).sort((a,b) => (b.updatedAt?.toMillis?.()||0) - (a.updatedAt?.toMillis?.()||0));
+        notesListDiv.innerHTML = "";
+        for (let note of sorted) {
+            const div = document.createElement('div');
+            div.className = `note-item ${currentNoteId === note.id ? 'active' : ''}`;
+            div.innerHTML = `<div><b>${escapeHtml(note.title || "无标题")}</b><br><small>${escapeHtml((note.content || "").substring(0,30))}</small></div>`;
+            div.onclick = () => setCurrentNote(note.id);
+            notesListDiv.appendChild(div);
+        }
+    }
+
+    function escapeHtml(str) { return str.replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+
+    function subscribeToNotes(userId) {
+        if (unsubscribeNotes) unsubscribeNotes();
+        const q = query(collection(db, "users", userId, "notes"), orderBy("updatedAt", "desc"));
+        unsubscribeNotes = onSnapshot(q, (snapshot) => {
+            const newMap = new Map();
+            snapshot.docChanges().forEach(change => {
+                const data = change.doc.data();
+                newMap.set(change.doc.id, { id: change.doc.id, title: data.title || "", content: data.content || "", updatedAt: data.updatedAt });
+            });
+            snapshot.docs.forEach(docSnap => {
+                if (!newMap.has(docSnap.id)) {
+                    const data = docSnap.data();
+                    newMap.set(docSnap.id, { id: docSnap.id, title: data.title || "", content: data.content || "", updatedAt: data.updatedAt });
+                }
+            });
+            const oldCurrent = currentNoteId ? notesMap.get(currentNoteId) : null;
+            notesMap = newMap;
+            if (currentNoteId && notesMap.has(currentNoteId)) {
+                const fresh = notesMap.get(currentNoteId);
+                if (oldCurrent && (fresh.title !== oldCurrent.title || fresh.content !== oldCurrent.content)) {
+                    noteTitleInput.value = fresh.title;
+                    noteContentInput.value = fresh.content;
+                }
+            } else if (!currentNoteId && notesMap.size > 0) { setCurrentNote(notesMap.keys().next().value); }
+            renderNotesList();
+        });
+    }
+
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUser = user;
+            userEmailSpan.innerText = user.email;
+            loginForm.style.display = 'none';
+            userInfoDiv.style.display = 'flex';
+            notesMap.clear();
+            clearEditor();
+            subscribeToNotes(user.uid);
+        } else {
+            currentUser = null;
+            loginForm.style.display = 'flex';
+            userInfoDiv.style.display = 'none';
+            if (unsubscribeNotes) unsubscribeNotes();
+            notesMap.clear();
+            clearEditor();
+            renderNotesList();
+        }
+    });
+
+    registerBtn.onclick = async () => {
+        const email = loginEmail.value.trim();
+        const pwd = loginPassword.value;
+        if (!email || !pwd) return alert("请输入邮箱和密码");
+        if (pwd.length < 6) return alert("密码至少6位");
+        try {
+            await createUserWithEmailAndPassword(auth, email, pwd);
+            alert("注册成功！已自动登录");
+        } catch (err) { alert("注册失败: " + err.message); }
+    };
+
+    loginBtn.onclick = async () => {
+        const email = loginEmail.value.trim();
+        const pwd = loginPassword.value;
+        if (!email || !pwd) return alert("请输入邮箱和密码");
+        try {
+            await signInWithEmailAndPassword(auth, email, pwd);
+        } catch (err) { alert("登录失败: " + err.message); }
+    };
+
+    logoutBtn.onclick = async () => { await signOut(auth); };
+    newNoteBtn.onclick = createNewNote;
+    deleteNoteBtn.onclick = deleteCurrentNote;
+</script>
+</body>
+</html>
